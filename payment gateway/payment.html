@@ -1,0 +1,91 @@
+<!-- payment.html (Frontend) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment</title>
+    <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body>
+    <h2>Make a Payment</h2>
+
+    <!-- Payment form for Visa -->
+    <h3>Pay with Visa</h3>
+    <form id="visa-payment-form">
+        <div id="card-element"></div>
+        <button type="submit" id="submit">Pay with Visa</button>
+        <div id="visa-error-message"></div>
+    </form>
+
+    <!-- Payment form for MTN Mobile Money -->
+    <h3>Pay with MTN Mobile Money</h3>
+    <form id="mtn-payment-form">
+        <input type="text" id="phone-number" placeholder="Enter phone number">
+        <button type="submit" id="mtn-submit">Pay with MTN Money</button>
+        <div id="mtn-error-message"></div>
+    </form>
+
+    <script>
+        // Stripe setup
+        const stripe = Stripe('your-stripe-publishable-key');
+        const elements = stripe.elements();
+        const cardElement = elements.create('card');
+        cardElement.mount('#card-element');
+
+        // Visa Payment form
+        const visaForm = document.getElementById('visa-payment-form');
+        visaForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const { clientSecret } = await fetch('/create-visa-payment-intent', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    amount: 1000,  // Amount in cents
+                    currency: 'usd'
+                })
+            }).then(res => res.json());
+
+            const { paymentIntent, error } = await stripe.confirmCardPayment(clientSecret, {
+                payment_method: {
+                    card: cardElement
+                }
+            });
+
+            if (error) {
+                document.getElementById('visa-error-message').textContent = error.message;
+            } else if (paymentIntent.status === 'succeeded') {
+                alert('Visa Payment successful!');
+            }
+        });
+
+        // MTN Payment form
+        const mtnForm = document.getElementById('mtn-payment-form');
+        mtnForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const phoneNumber = document.getElementById('phone-number').value;
+            const response = await fetch('/mtn-payment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    amount: 1000,  // Amount in local currency
+                    phone_number: phoneNumber
+                })
+            });
+
+            const result = await response.json();
+            if (result.status === 'pending') {
+                alert('MTN Money Payment initiated!');
+            } else {
+                document.getElementById('mtn-error-message').textContent = result.error;
+            }
+        });
+    </script>
+</body>
+</html>
